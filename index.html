@@ -1,132 +1,133 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>PionPos Yazıcı Sunucusu</title>
+    <style>
+      .printer-info {
+        display: flex;
+        justify-content: space-between;
+        list-style: none;
+        padding: 0;
+        padding-bottom: 0.4rem;
+      }
 
-<head>
-  <meta charset="UTF-8" />
-  <title>PionPos Yazıcı Sunucusu</title>
-  <style>
-    .printer-info {
-      display: flex;
-      justify-content: space-between;
-      list-style: none;
-      padding: 0;
-      padding-bottom: 0.4rem;
-    }
+      .printer-date {
+        display: flex;
+        justify-content: center;
+      }
 
-    .printer-date {
-      display: flex;
-      justify-content: center;
-    }
+      .printer-info li:first-child {
+        text-align: left;
+      }
 
-    .printer-info li:first-child {
-      text-align: left;
-    }
+      .printer-info li:last-child {
+        text-align: right;
+      }
 
-    .printer-info li:last-child {
-      text-align: right;
-    }
+      .order {
+        padding-bottom: 0.5rem;
+        padding-top: 0.5rem;
+        border-bottom: 1px solid;
+      }
 
-    .order {
-      padding-bottom: 0.5rem;
-      padding-top: 0.5rem;
-      border-bottom: 1px solid;
-    }
+      /* make ul margin left 0  */
+      ul {
+        margin-left: 0;
+        padding-left: 0;
+        width: 20rem;
+      }
+    </style>
+  </head>
 
-    /* make ul margin left 0  */
-    ul {
-      margin-left: 0;
-      padding-left: 0;
-      width: 20rem;
-    }
-  </style>
-</head>
+  <body>
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        width: 20rem;
+      "
+    >
+      <img src="./pion-logo-rect.png" style="height: 1.7rem" />
+      <h2 style="margin: 0">Sunucu: <span id="server-status"></span></h2>
+    </div>
 
-<body>
-  <div style="
-    display: flex;
-    justify-content: space-between;
-    margin-bottom:1rem;
-    width:20rem
-    ">
+    <details id="get-logs">
+      <summary>İşlem Geçmişi</summary>
+      <span id="printer-logs"> </span>
+    </details>
+    <script>
+      const { ipcRenderer } = require("electron");
 
-    <img src="./pion-logo-rect.png" style="height: 1.7rem;" />
-    <h2 style="margin:0">Sunucu: <span id="server-status"></span></h2>
-  </div>
+      ipcRenderer.send("get-port");
 
-  <details id="get-logs">
-    <summary>İşlem Geçmişi</summary>
-    <span id="printer-logs"> </span>
-  </details>
-  <script>
-    const { ipcRenderer } = require("electron");
-
-    ipcRenderer.send("get-port");
-
-    ipcRenderer.on("port", async (event, port) => {
-      try {
-        const response = await fetch(`http://localhost:5002/`);
-        if (response.status === 200) {
-          document.getElementById("server-status").textContent = "Açık";
-        } else {
-          document.getElementById("server-status").textContent = "Kapalı";
+      ipcRenderer.on("port", async (event, port) => {
+        try {
+          const response = await fetch(`http://localhost:5002/`);
+          if (response.status === 200) {
+            document.getElementById("server-status").textContent = "Açık";
+          } else {
+            document.getElementById("server-status").textContent = "Kapalı";
+          }
+        } catch (error) {
+          document.getElementById("server-status").textContent =
+            "Yeniden Başlatılıyor...";
         }
-      } catch (error) {
-        document.getElementById("server-status").textContent = "Yeniden Başlatılıyor...";
-      }
-    });
+      });
 
+      const getLogs = document.getElementById("get-logs");
+      getLogs.addEventListener("click", (event, res) => {
+        ipcRenderer.send("get-printer-logs");
+      });
 
+      ipcRenderer.on("printer-logs", async (event, logs) => {
+        try {
+          const list = document.createElement("ul");
+          const printerLogs = document.getElementById("printer-logs");
+          printerLogs.innerHTML = ""; // clear the previous logs
 
-    const getLogs = document.getElementById("get-logs");
-    getLogs.addEventListener("click", (event, res) => {
-      ipcRenderer.send("get-printer-logs");
-    });
+          logs.forEach((log) => {
+            const status = log.ERROR ? "Yazdırılamadı" : "Yazdırıldı";
+            const date = new Date(log.data.date.seconds * 1000);
+            const newDate =
+              date.toLocaleDateString("tr-TR") +
+              " " +
+              date.toLocaleTimeString("tr-TR", { hour12: false });
 
-    ipcRenderer.on("printer-logs", async (event, logs) => {
-      try {
-        const list = document.createElement("ul");
-        const printerLogs = document.getElementById("printer-logs");
-        printerLogs.innerHTML = ""; // clear the previous logs
-        logs.forEach(log => {
-          const status = log.ERROR ? "Yazdırılamadı" : "Yazdırıldı";
-          const date = new Date(log.data.date.seconds * 1000)
-          const newDate = date.toLocaleDateString("tr-TR") + " " + date.toLocaleTimeString("tr-TR", { hour12: false });
+            const li = document.createElement("li");
+            li.classList.add("order");
 
-          const li = document.createElement("li");
-          li.classList.add("order");
+            const printerName = document.createElement("span");
+            printerName.textContent = `Yazıcı: ${log.data.SELECTED_PRINTER.name}`;
+            const printStatus = document.createElement("span");
+            printStatus.textContent = `Durum: ${status}`;
+            const printDate = document.createElement("span");
+            printDate.classList.add("printer-date");
+            printDate.textContent = `Tarih: ${newDate}`;
 
+            const printerInfo = document.createElement("li");
+            printerInfo.classList.add("printer-info");
+            printerInfo.appendChild(printerName);
+            printerInfo.appendChild(printStatus);
 
-          const printerName = document.createElement("span");
-          printerName.textContent = `Yazıcı: ${log.data.SELECTED_PRINTER.name}`;
-          const printStatus = document.createElement("span");
-          printStatus.textContent = `Durum: ${status}`;
-          const printDate = document.createElement("span");
-          printDate.classList.add("printer-date");
-          printDate.textContent = `Tarih: ${newDate}`;
+            const orderList = document.createElement("ul");
+            log.data.orders.orders.forEach((order) => {
+              const orderLi = document.createElement("li");
+              orderLi.textContent = `${order.amount} ${order.name}`;
+              orderList.appendChild(orderLi);
+            });
 
-          const printerInfo = document.createElement("li");
-          printerInfo.classList.add("printer-info");
-          printerInfo.appendChild(printerName);
-          printerInfo.appendChild(printStatus);
-
-          const orderList = document.createElement("ul");
-          log.data.orders.orders.forEach(order => {
-            const orderLi = document.createElement("li");
-            orderLi.textContent = `${order.amount} ${order.name}`;
-            orderList.appendChild(orderLi);
+            li.appendChild(printDate);
+            li.appendChild(printerInfo);
+            li.appendChild(orderList);
+            list.appendChild(li);
           });
-
-          li.appendChild(printDate);
-          li.appendChild(printerInfo);
-          li.appendChild(orderList);
-          list.appendChild(li);
-        });
-        printerLogs.appendChild(list);
-      } catch (error) {
-        document.getElementById("printer-logs").textContent = "Hata Oluştu";
-      }
-    });
-  </script>
-</body>
-
+          printerLogs.appendChild(list);
+        } catch (error) {
+          document.getElementById("printer-logs").textContent = "Hata Oluştu";
+        }
+      });
+    </script>
+  </body>
 </html>

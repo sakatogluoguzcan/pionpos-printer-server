@@ -6,6 +6,7 @@ const nodeHtmlToImage = require("node-html-to-image");
 
 let screenshotPath = null;
 let processedIdList = [];
+let printActionLogs = [];
 
 app.get("/", (req, res) => {
   res.send("welcome to printer app server!");
@@ -34,10 +35,13 @@ function createPrinter(config) {
 async function print(data) {
   try {
     const printer = createPrinter(data.SELECTED_PRINTER);
+
     await printer.printImage(screenshotPath);
     printer.cut();
+
     await printer.execute();
-    await printer.beep();
+    printer.beep();
+
     return { SUCCESS: true, id: data.id, data };
   } catch (error) {
     // remove from processed list
@@ -50,32 +54,36 @@ app.use(cors(corsOptions));
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 
-let printActionLogs = [];
 
 app.post("/print", async (req, res) => {
   if (processedIdList.includes(req.body.id)) {
     return;
-  } else {
-    processedIdList.push(req.body.id);
-    processedIdList = processedIdList.slice(-10);
   }
-  console.log({ id: req.body.id, processedIdList });
+
+  processedIdList.push(req.body.id);
+  processedIdList = processedIdList.slice(-10);
+
   const imageSaveOperation = await saveImage(req.body.msg);
 
   if (!imageSaveOperation) {
     processedIdList = processedIdList.filter((item) => item !== req.body.id);
+
     return res.send({
       ERROR: true,
       IMAGE_PROCESS_FAILED: true,
       data: req.body,
       id: req.body.id,
     });
-  } else {
-    const printAction = await print(req.body);
-    res.send(printAction);
-    printActionLogs.push(printAction);
-    printActionLogs = printActionLogs.slice(-10);
+
   }
+
+  const printAction = await print(req.body);
+
+  res.send(printAction);
+
+  printActionLogs.push(printAction);
+  printActionLogs = printActionLogs.slice(-10);
+
 });
 
 ipcMain.on("get-printer-logs", (event) => {
@@ -114,6 +122,7 @@ app.listen(port, () => {
 
 async function saveImage(html) {
   try {
+    console.log({ screenshotPath })
     await nodeHtmlToImage({
       output: screenshotPath,
       html: html,
