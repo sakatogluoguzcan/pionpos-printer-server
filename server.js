@@ -2,20 +2,15 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const app = express();
 const { ipcMain } = require("electron");
-const fs = require("fs");
-const axios = require("axios");
 const nodeHtmlToImage = require("node-html-to-image");
 
 let screenshotPath = null;
-let availablePrinters = [];
 let processedIdList = [];
 
 app.get("/", (req, res) => {
   res.send("welcome to printer app server!");
 });
 
-const Server = require("http").Server;
-const server = new Server(app);
 const port = 5002;
 const cors = require("cors");
 const corsOptions = {
@@ -24,17 +19,6 @@ const corsOptions = {
 
 const ThermalPrinter = require("node-thermal-printer").printer;
 const PrinterTypes = require("node-thermal-printer").types;
-
-let electronAppIpAddress = null;
-
-axios
-  .get("http://ipinfo.io/json")
-  .then((response) => {
-    electronAppIpAddress = response.data.ip;
-  })
-  .catch((error) => {
-    console.error(error);
-  });
 
 function createPrinter(config) {
   let printer = new ThermalPrinter({
@@ -75,24 +59,7 @@ app.post("/print", async (req, res) => {
     processedIdList.push(req.body.id);
     processedIdList = processedIdList.slice(-10);
   }
-
-  if (
-    !availablePrinters.some(
-      (item) => item.TCP_ADDRESS === req.body.SELECTED_PRINTER.TCP_ADDRESS
-    )
-  ) {
-    processedIdList = processedIdList.filter((item) => item !== req.body.id);
-
-    return res.send({
-      PRINTER_NOT_CONNECTED: true,
-      data: req.body,
-      id: req.body.id,
-      ERROR: true,
-    });
-  }
-
-  if (req.body.ipAddress !== electronAppIpAddress) return;
-
+  console.log({ id: req.body.id, processedIdList });
   const imageSaveOperation = await saveImage(req.body.msg);
 
   if (!imageSaveOperation) {
@@ -115,56 +82,33 @@ ipcMain.on("get-printer-logs", (event) => {
   event.reply("printer-logs", printActionLogs);
 });
 
-function healthCheckHtml(printer) {
-  return ` 
-  <!DOCTYPE html>
-  <html lang="tr">
-  <head>
-    <meta charset="UTF-8" />
-    <style>
-      body {
-        width: 560px;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        padding-left: 1rem;
-        padding-right: 1rem;
-      }
-    </style>
-  </head>
-  <body>
-    <h3 style="text-align: center; font-size: 2rem">Yazıcı Test</h3>
-    <h3 style="text-align: center; font-size: 2rem">${printer.name}</h3>
-    <h3 style="text-align: center; font-size: 1.4rem">${printer.TCP_ADDRESS}</h3>
-  </body>
-  </html>
-  `;
-}
+app.post("/test", async (req, res) => {
+  try {
+    const html = req.body.msg;
 
-app.post("/printer-healthcheck", async (req, res) => {
-  const printerData = req.body.SELECTED_PRINTER;
-  const html = healthCheckHtml(printerData);
+    const imageSaveOperation = await saveImage(html);
 
-  const imageSaveOperation = await saveImage(html);
-  if (!imageSaveOperation) {
-    return res.send({ ERROR: true });
-  } else {
-    const printAction = await print(req.body);
-    res.send(printAction);
+    if (!imageSaveOperation) {
+      return res.send({ ERROR: true });
+    }
+
+    const result = await print(req.body);
+    res.send(result);
+  } catch (error) {
+    throw new Error("Error occured while printing", error);
   }
 });
 
-app.post("/printer-list", async (req, res) => {
-  const printerList = req.body;
-  printerList.forEach(async (item) => {
-    let printer = createPrinter(item);
-    let isConnected = await printer.isPrinterConnected(); // Check if printer is connected, return bool of status
-
-    if (isConnected) {
-      availablePrinters.push(item);
-    }
+app.post("/health-check", async (req, res) => {
+  const printer = createPrinter(req.body);
+  const isConnected = await printer.isPrinterConnected(); // Check if printer is connected, return bool of status
+  res.send({
+    ...req.body,
+    isConnected,
   });
 });
 
-server.listen(port, () => {
+app.listen(port, () => {
   console.log("Server running at: ", `localhost:${port}`);
 });
 
