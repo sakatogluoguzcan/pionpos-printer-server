@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "description": "My Electron App",
   "main": "index.js",
+  "author": {
+    "name": "PionPos",
+    "email": "info@pionpos.com"
+  },
   "scripts": {
     "start": "electron .",
     "build": "electron-builder"
   },
-  "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
     "electron": "^15.0.0",
@@ -16,6 +19,7 @@
   "build": {
     "appId": "com.example.my-electron-app",
     "productName": "Pion Printer App",
+    "compression": "maximum",
     "directories": {
       "output": "dist"
     },
@@ -31,6 +35,16 @@
       "icon": "icon.icns",
       "target": [
         "dmg",
+        "zip"
+      ]
+    },
+    "linux": {
+      "category": "your.app.category",
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm",
+        "tar.gz",
         "zip"
       ]
     },

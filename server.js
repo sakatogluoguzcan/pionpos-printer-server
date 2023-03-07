@@ -3,6 +3,7 @@ const bodyParser = require("body-parser");
 const app = express();
 const { ipcMain } = require("electron");
 const nodeHtmlToImage = require("node-html-to-image");
+const fs = require("fs");
 
 let screenshotPath = null;
 let processedIdList = [];
@@ -51,9 +52,8 @@ async function print(data) {
 }
 
 app.use(cors(corsOptions));
-app.use(bodyParser.json({ limit: "50mb" }));
-app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
-
+app.use(bodyParser.json({ limit: "2mb" }));
+app.use(bodyParser.urlencoded({ limit: "2mb", extended: true }));
 
 app.post("/print", async (req, res) => {
   if (processedIdList.includes(req.body.id)) {
@@ -74,7 +74,6 @@ app.post("/print", async (req, res) => {
       data: req.body,
       id: req.body.id,
     });
-
   }
 
   const printAction = await print(req.body);
@@ -83,7 +82,6 @@ app.post("/print", async (req, res) => {
 
   printActionLogs.push(printAction);
   printActionLogs = printActionLogs.slice(-10);
-
 });
 
 ipcMain.on("get-printer-logs", (event) => {
@@ -122,7 +120,7 @@ app.listen(port, () => {
 
 async function saveImage(html) {
   try {
-    console.log({ screenshotPath })
+    console.log({ screenshotPath });
     await nodeHtmlToImage({
       output: screenshotPath,
       html: html,
@@ -136,6 +134,9 @@ async function saveImage(html) {
 }
 
 module.exports = function (path) {
+  if (!fs.existsSync(path)) {
+    fs.mkdirSync(path);
+  }
   screenshotPath = path + "/screenshot.png";
   return app;
 };
